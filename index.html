@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>SpendSafe — HCI Prototype</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif; }
+    #root { min-height: 100vh; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
+  <script type="text/babel">
+    const { useState, useEffect, useCallback, useMemo, useRef, createContext, useContext } = React;
+
+// ─── Auto-date helpers ───
+const TODAY = new Date();
+const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const DAYS = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+const fmtDate = (d) => MONTHS[d.getMonth()] + " " + d.getDate();
+const fmtDay = (d) => DAYS[d.getDay()];
+const addDays = (d, n) => { const r = new Date(d); r.setDate(r.getDate() + n); return r; };
+const relTime = (daysAgo) => {
+  if (daysAgo === 0) return "Today";
+  if (daysAgo === 1) return "Yesterday";
+  return daysAgo + " days ago";
+};
+const relDate = (daysAgo) => fmtDate(addDays(TODAY, -daysAgo));
+
+// ─── Dual Theme System (WCAG 2.1 AA — all combos ≥ 4.5:1) ───
+const DARK = {
+  bg: "#0C0E14", surface: "#141720", card: "#1A1E2C", cardHover: "#222840",
+  border: "#262D40", primary: "#22C55E", primaryDark: "#16A34A",
+  primaryGlow: "rgba(34,197,94,0.12)", danger: "#EF4444",
+  dangerGlow: "rgba(239,68,68,0.10)", warning: "#F59E0B",
+  warningGlow: "rgba(245,158,11,0.10)", text: "#F1F5F9",
+  textSec: "#C8C0B8", textMut: "#A89E94", accent: "#818CF8",
+  accentGlow: "rgba(129,140,248,0.12)", accentLine: "#6366F1",
+  modalOverlay: "rgba(0,0,0,0.7)", shadow: "0 8px 30px rgba(0,0,0,0.4)",
+  ringTrack: "#262D40", toggleBg: "#22C55E", toggleKnob: "#fff", toggleOffBg: "#3B4252",
+};
+
+const LIGHT = {
+  bg: "#F5F6FA", surface: "#FFFFFF", card: "#FFFFFF", cardHover: "#F0F1F5",
+  border: "#DDE1EA", primary: "#16A34A", primaryDark: "#15803D",
+  primaryGlow: "rgba(22,163,74,0.10)", danger: "#DC2626",
+  dangerGlow: "rgba(220,38,38,0.08)", warning: "#D97706",
+  warningGlow: "rgba(217,119,6,0.08)", text: "#1A1D27",
+  textSec: "#4B5563", textMut: "#6B7280", accent: "#6366F1",
+  accentGlow: "rgba(99,102,241,0.10)", accentLine: "#6366F1",
+  modalOverlay: "rgba(0,0,0,0.35)", shadow: "0 8px 30px rgba(0,0,0,0.10)",
+  ringTrack: "#E2E5ED", toggleBg: "#16A34A", toggleKnob: "#fff", toggleOffBg: "#CBD5E1",
+};
+
+const ThemeCtx = createContext(DARK);
+const useT = () => useContext(ThemeCtx);
+
+// ─── Compact Icons ───
+const I = {
+  home: <svg width="21" height="21" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>,
+  chart: <svg width="21" height="21" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>,
+  bell: <svg width="21" height="21" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>,
+  cal: <svg width="21" height="21" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>,
+  forecast: <svg width="21" height="21" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>,
+  plus: <svg width="21" height="21" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>,
+  back: <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>,
+  chevron: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>,
+  close: <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>,
+  check: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>,
+  clock: <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,
+  shield: <svg width="38" height="38" fill="none" stroke="#22C55E" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>,
+  settings: <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>,
+  arrowDown: <svg width="12" height="12" fill="none" stroke="#EF4444" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>,
+  arrowUp: <svg width="12" height="12" fill="none" stroke="#22C55E" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>,
+  target: <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>,
+  sun: <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>,
+  moon: <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>,
+  trash: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>,
+  edit: <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>,
+  fund: <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>,
+};
+
+const catIcons = { "Eating Out": "🍔", "Gas": "⛽", "Shopping": "🛒", "Groceries": "🛒", "Medical": "🩺", "Income": "💵", "Other": "📦" };
+
+// ─── Persona Data (dates auto-calculated from today) ───
+const P1 = {
+  name: "Marcus", balance: 1847.32, safeToSpend: 504.34, daysUntilPay: 14, income: 2400,
+  get nextPaycheck() { return fmtDate(addDays(TODAY, 14)); },
+  bills: [
+    { name: "Rent (separate acct)", amount: 1050, daysUntil: 8, paid: true, icon: "🏠" },
+    { name: "Car Insurance", amount: 187, daysUntil: 11, paid: false, icon: "🚗" },
+    { name: "Phone Bill", amount: 65, daysUntil: 16, paid: false, icon: "📱" },
+    { name: "Spotify", amount: 10.99, daysUntil: 18, paid: false, icon: "🎵" },
+    { name: "Gym Membership", amount: 29.99, daysUntil: 22, paid: false, icon: "💪" },
+  ],
+  transactions: [
+    { name: "Uber Eats — Chipotle", amount: -18.47, category: "Eating Out", daysAgo: 0, time: "1:22 PM" },
+    { name: "Shell Gas Station", amount: -42.30, category: "Gas", daysAgo: 1, time: "7:45 PM" },
+    { name: "Amazon — Phone Case", amount: -14.99, category: "Shopping", daysAgo: 1, time: "3:10 PM" },
+    { name: "Daily Tips — Deposit", amount: 127.00, category: "Income", daysAgo: 1, time: "11:30 PM" },
+    { name: "Wingstop", amount: -23.56, category: "Eating Out", daysAgo: 2, time: "8:15 PM" },
+    { name: "Daily Tips — Deposit", amount: 98.00, category: "Income", daysAgo: 2, time: "11:15 PM" },
+    { name: "Target", amount: -31.22, category: "Shopping", daysAgo: 3, time: "2:40 PM" },
+    { name: "Daily Tips — Deposit", amount: 145.00, category: "Income", daysAgo: 3, time: "11:00 PM" },
+  ],
+  spending: { "Eating Out": { spent: 156.40, limit: 200, pct: 78 }, "Gas": { spent: 89.60, limit: 120, pct: 75 }, "Shopping": { spent: 112.33, limit: 150, pct: 75 }, "Groceries": { spent: 67.20, limit: 200, pct: 34 } },
+  alerts: [ { type: "warning", msg: "Eating Out is at 78% of your $200 monthly limit", time: "2h ago" }, { type: "info", msg: "Next paycheck in 14 days", time: "Today" } ],
+  goals: [ { name: "Emergency Fund", saved: 127, target: 500, targetDate: "Jun 30", icon: "🛡️" }, { name: "New GPU", saved: 180, target: 260, targetDate: "May 15", icon: "🖥️" } ],
+  forecastEvents: [
+    { day: 0, type: "spend", label: "Avg daily spend", amount: -55 }, { day: 1, type: "spend", label: "Avg daily spend", amount: -55 },
+    { day: 2, type: "spend", label: "Avg daily spend", amount: -55 }, { day: 3, type: "spend", label: "Avg daily spend", amount: -55 },
+    { day: 4, type: "spend", label: "Avg daily spend", amount: -55 }, { day: 5, type: "spend", label: "Avg daily spend", amount: -55 },
+    { day: 6, type: "spend", label: "Avg daily spend", amount: -55 },
+    { day: 7, type: "income", label: "Daily Tips", amount: 145 },
+    { day: 8, type: "bill", label: "Rent (separate acct)", amount: -1050 },
+    { day: 9, type: "spend", label: "Avg daily spend", amount: -55 },
+    { day: 10, type: "spend", label: "Avg daily spend", amount: -55 },
+    { day: 11, type: "bill", label: "Car Insurance", amount: -187 },
+    { day: 12, type: "spend", label: "Avg daily spend", amount: -55 },
+    { day: 13, type: "spend", label: "Avg daily spend", amount: -55 },
+    { day: 14, type: "income", label: "Biweekly Paycheck", amount: 1200 },
+    { day: 15, type: "spend", label: "Avg daily spend", amount: -55 },
+    { day: 16, type: "bill", label: "Phone Bill", amount: -65 },
+    { day: 17, type: "spend", label: "Avg daily spend", amount: -55 },
+    { day: 18, type: "bill", label: "Spotify", amount: -10.99 },
+    { day: 19, type: "spend", label: "Avg daily spend", amount: -55 },
+    { day: 20, type: "spend", label: "Avg daily spend", amount: -55 },
+    { day: 21, type: "income", label: "Daily Tips", amount: 145 },
+    { day: 22, type: "bill", label: "Gym Membership", amount: -29.99 },
+    { day: 23, type: "spend", label: "Avg daily spend", amount: -55 },
+    { day: 24, type: "spend", label: "Avg daily spend", amount: -55 },
+    { day: 25, type: "spend", label: "Avg daily spend", amount: -55 },
+    { day: 26, type: "spend", label: "Avg daily spend", amount: -55 },
+    { day: 27, type: "spend", label: "Avg daily spend", amount: -55 },
+    { day: 28, type: "income", label: "Biweekly Paycheck", amount: 1200 },
+    { day: 29, type: "spend", label: "Avg daily spend", amount: -55 },
+    { day: 30, type: "spend", label: "Avg daily spend", amount: -55 },
+  ],
+};
+
+const P2 = {
+  name: "Diana", balance: 612.45, safeToSpend: 243.50, daysUntilPay: 7, income: 680,
+  get nextPaycheck() { return fmtDate(addDays(TODAY, 7)); },
+  bills: [
+    { name: "Electricity (Duke Energy)", amount: 94, daysUntil: 9, paid: false, icon: "⚡" },
+    { name: "Water Bill", amount: 38, daysUntil: 12, paid: false, icon: "💧" },
+    { name: "Car Insurance", amount: 112, daysUntil: 16, paid: false, icon: "🚗" },
+    { name: "Phone Bill", amount: 45, daysUntil: 19, paid: false, icon: "📱" },
+    { name: "Netflix", amount: 15.99, daysUntil: 21, paid: false, icon: "📺" },
+  ],
+  transactions: [
+    { name: "Publix Supermarket", amount: -47.83, category: "Groceries", daysAgo: 0, time: "5:30 PM" },
+    { name: "Shell Gas Station", amount: -38.50, category: "Gas", daysAgo: 1, time: "7:00 AM" },
+    { name: "Walgreens — Prescription", amount: -12.40, category: "Medical", daysAgo: 2, time: "1:15 PM" },
+    { name: "Weekly Pay — Deposit", amount: 680.00, category: "Income", daysAgo: 2, time: "6:00 AM" },
+    { name: "Dollar Tree", amount: -8.50, category: "Shopping", daysAgo: 3, time: "4:20 PM" },
+    { name: "Publix Supermarket", amount: -52.17, category: "Groceries", daysAgo: 4, time: "6:10 PM" },
+    { name: "McDonald's", amount: -9.47, category: "Eating Out", daysAgo: 5, time: "12:30 PM" },
+  ],
+  spending: { "Groceries": { spent: 134.22, limit: 180, pct: 75 }, "Gas": { spent: 72.00, limit: 80, pct: 90 }, "Medical": { spent: 12.40, limit: 50, pct: 25 }, "Shopping": { spent: 23.70, limit: 40, pct: 59 } },
+  alerts: [ { type: "danger", msg: "Gas spending is at 90% of your $80 weekly limit", time: "1h ago" }, { type: "info", msg: "Next paycheck in 7 days", time: "Today" } ],
+  goals: [ { name: "Emergency Fund", saved: 210, target: 500, targetDate: "Aug 1", icon: "🛡️" }, { name: "Weekend Trip", saved: 200, target: 350, targetDate: "May 10", icon: "✈️" } ],
+  forecastEvents: [
+    { day: 0, type: "spend", label: "Avg daily spend", amount: -28 }, { day: 1, type: "spend", label: "Avg daily spend", amount: -28 },
+    { day: 2, type: "spend", label: "Avg daily spend", amount: -28 }, { day: 3, type: "spend", label: "Avg daily spend", amount: -28 },
+    { day: 4, type: "spend", label: "Avg daily spend", amount: -28 }, { day: 5, type: "spend", label: "Avg daily spend", amount: -28 },
+    { day: 6, type: "spend", label: "Avg daily spend", amount: -28 },
+    { day: 7, type: "income", label: "Weekly Paycheck", amount: 680 },
+    { day: 8, type: "spend", label: "Avg daily spend", amount: -28 },
+    { day: 9, type: "bill", label: "Electricity (Duke)", amount: -94 },
+    { day: 10, type: "spend", label: "Avg daily spend", amount: -28 },
+    { day: 11, type: "spend", label: "Avg daily spend", amount: -28 },
+    { day: 12, type: "bill", label: "Water Bill", amount: -38 },
+    { day: 13, type: "spend", label: "Avg daily spend", amount: -28 },
+    { day: 14, type: "income", label: "Weekly Paycheck", amount: 680 },
+    { day: 15, type: "spend", label: "Avg daily spend", amount: -28 },
+    { day: 16, type: "bill", label: "Car Insurance", amount: -112 },
+    { day: 17, type: "spend", label: "Avg daily spend", amount: -28 },
+    { day: 18, type: "spend", label: "Avg daily spend", amount: -28 },
+    { day: 19, type: "bill", label: "Phone Bill", amount: -45 },
+    { day: 20, type: "spend", label: "Avg daily spend", amount: -28 },
+    { day: 21, type: "income", label: "Weekly Paycheck", amount: 680 },
+    { day: 21, type: "bill", label: "Netflix", amount: -15.99 },
+    { day: 22, type: "spend", label: "Avg daily spend", amount: -28 },
+    { day: 23, type: "spend", label: "Avg daily spend", amount: -28 },
+    { day: 24, type: "spend", label: "Avg daily spend", amount: -28 },
+    { day: 25, type: "spend", label: "Avg daily spend", amount: -28 },
+    { day: 26, type: "spend", label: "Avg daily spend", amount: -28 },
+    { day: 27, type: "spend", label: "Avg daily spend", amount: -28 },
+    { day: 28, type: "income", label: "Weekly Paycheck", amount: 680 },
+    { day: 29, type: "spend", label: "Avg daily spend", amount: -28 },
+    { day: 30, type: "spend", label: "Avg daily spend", amount: -28 },
+  ],
+};
+
+// ─── Helpers ───
+const fmt = (n) => (n < 0 ? "-" : "") + "$" + Math.abs(n).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+const fmtShort = (n) => (n < 0 ? "-" : "") + "$" + (Math.abs(n) >= 1000 ? (Math.abs(n)/1000).toFixed(1) + "k" : Math.abs(n).toFixed(0));
+
+function buildForecast(sb, ev) {
+  let b = sb; const pts = []; const m = {};
+  ev.forEach(e => { if (!m[e.day]) m[e.day] = []; m[e.day].push(e); });
+  for (let d = 0; d <= 30; d++) {
+    const de = m[d] || [];
+    de.forEach(e => { b += e.amount; });
+    const dt = addDays(TODAY, d);
+    pts.push({ day: d, balance: Math.round(b * 100) / 100, label: fmtDate(dt), dow: fmtDay(dt), events: de.filter(e => e.type !== "spend") });
+  }
+  return pts;
+}
+
+// ─── Monthly safe-to-spend from forecast ───
+function calcMonthly(forecastPoints) {
+  // Sum all income over 30 days, subtract all bills, gives net available for the month
+  let totalIncome = 0, totalBills = 0;
+  forecastPoints.forEach(p => {
+    p.events.forEach(e => {
+      if (e.type === "income") totalIncome += e.amount;
+    });
+  });
+  // Also count bill events from the raw forecast
+  forecastPoints.forEach(p => {
+    p.events.forEach(e => {
+      if (e.type === "bill") totalBills += Math.abs(e.amount);
+    });
+  });
+  const endBal = forecastPoints[30]?.balance || 0;
+  const startBal = forecastPoints[0]?.balance || 0;
+  // Monthly safe-to-spend = current balance + all incoming income - all bills over 30 days
+  // This represents total discretionary money over the month
+  return Math.max(startBal + totalIncome - totalBills, 0);
+}
+
+// ─── Forecast Chart ───
+function ForecastChart({ data, points }) {
+  const T = useT();
+  const [hover, setHover] = useState(null);
+  const [aP, setAP] = useState(0);
+  const ref = useRef(null);
+  useEffect(() => { let s = null; const d = 1200; const st = (t) => { if (!s) s = t; const p = Math.min((t - s) / d, 1); setAP(p * p * (3 - 2 * p)); if (p < 1) requestAnimationFrame(st); }; requestAnimationFrame(st); }, [data.name]);
+  const W = 380, H = 220, PL = 48, PR = 12, PT = 28, PB = 38, cW = W - PL - PR, cH = H - PT - PB;
+  const vals = points.map(p => p.balance);
+  const maxV = Math.max(...vals) * 1.08, minV = Math.min(...vals, 0) * (Math.min(...vals) < 0 ? 1.15 : 0.85), rng = maxV - minV || 1;
+  const x = (i) => PL + (i / 30) * cW, y = (v) => PT + cH - ((v - minV) / rng) * cH;
+  const li = vals.indexOf(Math.min(...vals)), lp = points[li];
+  const lnPts = points.map((p, i) => `${x(i)},${y(p.balance)}`).join(" ");
+  const area = `M ${x(0)},${y(points[0].balance)} ` + points.map((p, i) => `L ${x(i)},${y(p.balance)}`).join(" ") + ` L ${x(30)},${y(minV)} L ${x(0)},${y(minV)} Z`;
+  const mk = []; points.forEach((p, i) => { p.events.forEach(e => { mk.push({ i, x: x(i), y: y(p.balance), event: e, balance: p.balance, label: p.label }); }); });
+  const gC = 4, gL = Array.from({ length: gC + 1 }, (_, i) => { const v = minV + (rng / gC) * i; return { v, y: y(v) }; });
+  const xL = [0, 5, 10, 15, 20, 25, 30].map(d => ({ d, x: x(d), label: points[d]?.label || "" }));
+  const hMM = useCallback((e) => { if (!ref.current) return; const r = ref.current.getBoundingClientRect(); const idx = Math.round(((((e.clientX - r.left) * (W / r.width)) - PL) / cW) * 30); if (idx >= 0 && idx <= 30) setHover(idx); else setHover(null); }, []);
+  const hT = useCallback((e) => { if (!ref.current) return; const r = ref.current.getBoundingClientRect(); const idx = Math.round((((e.touches[0].clientX - r.left) * (W / r.width) - PL) / cW) * 30); if (idx >= 0 && idx <= 30) setHover(idx); }, []);
+  return (
+    <svg ref={ref} viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block", cursor: "crosshair" }} onMouseMove={hMM} onMouseLeave={() => setHover(null)} onTouchMove={hT} onTouchEnd={() => setHover(null)}>
+      <defs>
+        <linearGradient id="aG" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={T.accent} stopOpacity="0.25" /><stop offset="100%" stopColor={T.accent} stopOpacity="0.02" /></linearGradient>
+        <linearGradient id="lG" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stopColor={T.accent} /><stop offset="100%" stopColor={T.primary} /></linearGradient>
+        <filter id="gl"><feGaussianBlur stdDeviation="3" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
+        <clipPath id="aC"><rect x="0" y="0" width={PL + cW * aP} height={H} /></clipPath>
+      </defs>
+      {gL.map((g, i) => (<g key={i}><line x1={PL} y1={g.y} x2={W - PR} y2={g.y} stroke={T.border} strokeWidth="0.5" strokeDasharray="3,3" /><text x={PL - 6} y={g.y + 4} fill={T.textMut} fontSize="9" textAnchor="end" fontFamily="'DM Sans',sans-serif">{fmtShort(g.v)}</text></g>))}
+      {xL.map(xl => (<text key={xl.d} x={xl.x} y={H - 8} fill={T.textMut} fontSize="8.5" textAnchor="middle" fontFamily="'DM Sans',sans-serif">{xl.label}</text>))}
+      <g clipPath="url(#aC)"><path d={area} fill="url(#aG)" /><polyline points={lnPts} fill="none" stroke="url(#lG)" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" filter="url(#gl)" /></g>
+      {minV < 0 && <line x1={PL} y1={y(0)} x2={W - PR} y2={y(0)} stroke={T.danger} strokeWidth="1" strokeDasharray="4,4" opacity="0.5" />}
+      <g clipPath="url(#aC)">{mk.map((m, idx) => { const isI = m.event.type === "income"; const c = isI ? T.primary : T.danger; return (<g key={idx}><line x1={m.x} y1={PT} x2={m.x} y2={H - PB} stroke={c} strokeWidth="0.8" strokeDasharray="2,3" opacity="0.4" /><circle cx={m.x} cy={m.y} r="5" fill={T.bg} stroke={c} strokeWidth="2" /><circle cx={m.x} cy={m.y} r="2" fill={c} /></g>); })}</g>
+      <g clipPath="url(#aC)">
+        <line x1={x(li)} y1={y(lp.balance) + 6} x2={x(li)} y2={y(lp.balance) + 22} stroke={T.danger} strokeWidth="1.5" />
+        <rect x={x(li) - 42} y={y(lp.balance) + 22} width="84" height="22" rx="6" fill={T.danger} />
+        <text x={x(li)} y={y(lp.balance) + 37} fill="#fff" fontSize="10" fontWeight="700" textAnchor="middle" fontFamily="'DM Sans',sans-serif">LOW: {fmtShort(lp.balance)}</text>
+        <circle cx={x(li)} cy={y(lp.balance)} r="6" fill={T.danger} opacity="0.3"><animate attributeName="r" values="6;10;6" dur="2s" repeatCount="indefinite" /><animate attributeName="opacity" values="0.3;0.1;0.3" dur="2s" repeatCount="indefinite" /></circle>
+        <circle cx={x(li)} cy={y(lp.balance)} r="4" fill={T.bg} stroke={T.danger} strokeWidth="2" />
+      </g>
+      {hover !== null && points[hover] && (<g>
+        <line x1={x(hover)} y1={PT} x2={x(hover)} y2={H - PB} stroke={T.textSec} strokeWidth="0.8" strokeDasharray="2,2" />
+        <circle cx={x(hover)} cy={y(points[hover].balance)} r="5" fill={T.accent} stroke={T.bg} strokeWidth="2" />
+        <rect x={Math.min(x(hover) - 50, W - PR - 100)} y={Math.max(y(points[hover].balance) - 42, 2)} width="100" height="32" rx="6" fill={T.surface} stroke={T.border} strokeWidth="1" />
+        <text x={Math.min(x(hover) - 50, W - PR - 100) + 50} y={Math.max(y(points[hover].balance) - 42, 2) + 14} fill={T.textSec} fontSize="8.5" textAnchor="middle" fontFamily="'DM Sans',sans-serif">{points[hover].dow} {points[hover].label}</text>
+        <text x={Math.min(x(hover) - 50, W - PR - 100) + 50} y={Math.max(y(points[hover].balance) - 42, 2) + 27} fill={T.text} fontSize="11" fontWeight="700" textAnchor="middle" fontFamily="'DM Sans',sans-serif">{fmt(points[hover].balance)}</text>
+      </g>)}
+    </svg>
+  );
+}
+
+function ForecastEventList({ points }) {
+  const T = useT();
+  const all = []; points.forEach(p => { p.events.forEach(e => { all.push({ ...e, dateLabel: p.label, dow: p.dow, balance: p.balance }); }); });
+  if (!all.length) return null;
+  return (<div style={{ margin: "0 12px", background: T.surface, borderRadius: 12, overflow: "hidden", border: `1px solid ${T.border}` }}>
+    {all.map((e, i) => { const isI = e.type === "income"; return (<div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 14px", borderBottom: `1px solid ${T.border}` }}>
+      <div style={{ width: 32, height: 32, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", background: isI ? T.primaryGlow : T.dangerGlow }}>{isI ? I.arrowUp : I.arrowDown}</div>
+      <div style={{ flex: 1 }}><div style={{ fontSize: 13, fontWeight: 500, color: T.text }}>{e.label}</div><div style={{ fontSize: 11, color: T.textMut }}>{e.dow} {e.dateLabel}</div></div>
+      <div style={{ textAlign: "right" }}><div style={{ fontSize: 14, fontWeight: 600, color: isI ? T.primary : T.danger, fontFamily: "'DM Sans',sans-serif" }}>{isI ? "+" : ""}{fmt(e.amount)}</div><div style={{ fontSize: 10, color: T.textMut }}>→ {fmt(e.balance)}</div></div>
+    </div>); })}
+  </div>);
+}
+
+function Ring({ amount, total, daysLeft, daysLabel, nextPay }) {
+  const T = useT(); const pct = Math.min((Math.max(amount, 0) / total) * 100, 100);
+  const r = 78, circ = 2 * Math.PI * r, off = circ - (pct / 100) * circ;
+  const col = pct > 40 ? T.primary : pct > 20 ? T.warning : T.danger;
+  const perDay = amount / Math.max(daysLeft, 1);
+  return (<div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "24px 0 6px" }}>
+    <div style={{ position: "relative", width: 192, height: 192 }}>
+      <svg width="192" height="192" viewBox="0 0 192 192" style={{ transform: "rotate(-90deg)" }}><circle cx="96" cy="96" r={r} fill="none" stroke={T.ringTrack} strokeWidth="9" /><circle cx="96" cy="96" r={r} fill="none" stroke={col} strokeWidth="9" strokeDasharray={circ} strokeDashoffset={off} strokeLinecap="round" style={{ transition: "stroke-dashoffset 1s ease, stroke 0.5s" }} /></svg>
+      <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+        <span style={{ fontSize: 10, fontWeight: 600, color: T.textMut, letterSpacing: "0.1em", textTransform: "uppercase" }}>Safe to Spend</span>
+        <span style={{ fontSize: fmt(amount).length > 9 ? 24 : fmt(amount).length > 7 ? 28 : 34, fontWeight: 700, color: T.text, fontFamily: "'DM Sans',sans-serif", marginTop: 1 }}>{fmt(amount)}</span>
+        <span style={{ fontSize: 11, color: T.textSec }}>of {fmt(total)} remaining</span>
+      </div>
+    </div>
+    <div style={{ display: "flex", gap: 18, marginTop: 10, padding: "7px 18px", background: T.card, borderRadius: 11, border: `1px solid ${T.border}` }}>
+      {[{ val: daysLeft, lab: daysLabel || "Days Left" }, { val: fmt(Math.max(perDay, 0)), lab: "Per Day" }, { val: nextPay, lab: "Next Pay" }].map((s, i) => (<div key={i} style={{ display: "flex", flexDirection: "column", alignItems: "center" }}><div style={{ fontSize: 16, fontWeight: 700, color: T.text }}>{s.val}</div><div style={{ fontSize: 9, color: T.textMut, textTransform: "uppercase", letterSpacing: "0.08em" }}>{s.lab}</div></div>))}
+    </div>
+  </div>);
+}
+
+function TimeFrame({ selected, onChange }) {
+  const T = useT();
+  return (<div style={{ display: "flex", gap: 5, padding: "12px 14px 14px" }}>
+    {["Daily", "Weekly", "Monthly"].map(o => (<button key={o} onClick={() => onChange(o)} style={{ flex: 1, padding: "7px 0", borderRadius: 8, border: "none", cursor: "pointer", fontSize: 11.5, fontWeight: 600, background: selected === o ? T.primary : T.card, color: selected === o ? "#000" : T.textSec, transition: "all 0.2s" }}>{o}</button>))}
+  </div>);
+}
+
+function Nav({ tab, setTab }) {
+  const T = useT();
+  const tabs = [{ id: "home", icon: I.home, label: "Home" }, { id: "forecast", icon: I.forecast, label: "Forecast" }, { id: "spending", icon: I.chart, label: "Spending" }, { id: "alerts", icon: I.bell, label: "Alerts" }, { id: "bills", icon: I.cal, label: "Bills" }];
+  return (<div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 420, background: T.surface, borderTop: `1px solid ${T.border}`, display: "flex", justifyContent: "space-around", padding: "5px 0 env(safe-area-inset-bottom, 7px)", zIndex: 100 }}>
+    {tabs.map(t => (<button key={t.id} onClick={() => setTab(t.id)} style={{ background: "none", border: "none", display: "flex", flexDirection: "column", alignItems: "center", gap: 1, color: tab === t.id ? T.primary : T.textMut, cursor: "pointer", padding: "3px 10px", transition: "color 0.2s" }}><span style={{ opacity: tab === t.id ? 1 : 0.55 }}>{t.icon}</span><span style={{ fontSize: 9.5, fontWeight: 600, letterSpacing: "0.02em" }}>{t.label}</span></button>))}
+  </div>);
+}
+
+function Toggle({ on, onToggle }) {
+  const T = useT();
+  return (<button onClick={onToggle} style={{ width: 44, height: 24, borderRadius: 12, border: "none", cursor: "pointer", padding: 2, background: on ? T.toggleBg : T.toggleOffBg, transition: "background 0.3s", display: "flex", alignItems: "center" }}>
+    <div style={{ width: 20, height: 20, borderRadius: 10, background: T.toggleKnob, transform: on ? "translateX(20px)" : "translateX(0)", transition: "transform 0.3s", boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }} />
+  </button>);
+}
+
+// ─── Modals ───
+function QuickLog({ onClose, onLog, spending }) {
+  const T = useT(); const [amt, setAmt] = useState(""); const [desc, setDesc] = useState(""); const [cat, setCat] = useState("Eating Out"); const [isDep, setIsDep] = useState(false);
+  const cats = Object.keys(spending).concat("Other");
+  const iS = { width: "100%", padding: "10px 14px", borderRadius: 10, border: `1px solid ${T.border}`, background: T.card, color: T.text, fontSize: 13, outline: "none", boxSizing: "border-box", marginBottom: 10 };
+  return (<div style={{ position: "fixed", inset: 0, background: T.modalOverlay, zIndex: 200, display: "flex", alignItems: "flex-end", justifyContent: "center" }} onClick={onClose}>
+    <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 420, background: T.surface, borderRadius: "18px 18px 0 0", padding: "22px 18px 24px", animation: "slideUp .3s ease" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}><h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: T.text }}>Quick Log</h3><button onClick={onClose} style={{ background: "none", border: "none", color: T.textMut, cursor: "pointer" }}>{I.close}</button></div>
+      <div style={{ display: "flex", gap: 7, marginBottom: 14 }}>{[false, true].map(v => (<button key={String(v)} onClick={() => setIsDep(v)} style={{ flex: 1, padding: "9px", borderRadius: 9, border: `1.5px solid ${isDep === v ? (v ? T.primary : T.danger) : T.border}`, background: isDep === v ? (v ? T.primaryGlow : T.dangerGlow) : "transparent", color: isDep === v ? (v ? T.primary : T.danger) : T.textMut, fontWeight: 600, fontSize: 13, cursor: "pointer" }}>{v ? "Deposit" : "Purchase"}</button>))}</div>
+      <input value={amt} onChange={e => setAmt(e.target.value)} placeholder="0.00" type="number" autoFocus style={{ ...iS, fontSize: 22, fontWeight: 700, textAlign: "center", fontFamily: "'DM Sans',sans-serif" }} />
+      <input value={desc} onChange={e => setDesc(e.target.value)} placeholder="Description (optional)" style={iS} />
+      {!isDep && (<div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 14 }}>{cats.map(c => (<button key={c} onClick={() => setCat(c)} style={{ padding: "5px 12px", borderRadius: 7, border: `1px solid ${cat === c ? T.primary : T.border}`, background: cat === c ? T.primaryGlow : "transparent", color: cat === c ? T.primary : T.textSec, fontSize: 12, fontWeight: 500, cursor: "pointer" }}>{c}</button>))}</div>)}
+      <button onClick={() => { if (!amt || isNaN(parseFloat(amt))) return; onLog({ name: desc || (isDep ? "Deposit" : cat), amount: isDep ? Math.abs(parseFloat(amt)) : -Math.abs(parseFloat(amt)), category: isDep ? "Income" : cat, date: fmtDate(TODAY), time: "Just now" }); onClose(); }} style={{ width: "100%", padding: "13px", borderRadius: 11, border: "none", background: T.primary, color: "#000", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>Log {isDep ? "Deposit" : "Purchase"}</button>
+    </div>
+  </div>);
+}
+
+function AddBill({ onClose, onAdd }) {
+  const T = useT(); const [name, setName] = useState(""); const [amount, setAmount] = useState(""); const [daysUntil, setDaysUntil] = useState("15"); const [icon, setIcon] = useState("📄");
+  const icons = ["📄","🏠","⚡","💧","🚗","📱","🎵","📺","💪","🩺"];
+  const iS = { width: "100%", padding: "10px 14px", borderRadius: 10, border: `1px solid ${T.border}`, background: T.card, color: T.text, fontSize: 13, outline: "none", boxSizing: "border-box", marginBottom: 10 };
+  return (<div style={{ position: "fixed", inset: 0, background: T.modalOverlay, zIndex: 200, display: "flex", alignItems: "flex-end", justifyContent: "center" }} onClick={onClose}>
+    <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 420, background: T.surface, borderRadius: "18px 18px 0 0", padding: "22px 18px 24px", animation: "slideUp .3s ease" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}><h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: T.text }}>Add Recurring Bill</h3><button onClick={onClose} style={{ background: "none", border: "none", color: T.textMut, cursor: "pointer" }}>{I.close}</button></div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginBottom: 14 }}>{icons.map(ic => (<button key={ic} onClick={() => setIcon(ic)} style={{ width: 38, height: 38, borderRadius: 9, border: `1.5px solid ${icon === ic ? T.primary : T.border}`, background: icon === ic ? T.primaryGlow : T.card, fontSize: 17, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>{ic}</button>))}</div>
+      <input value={name} onChange={e => setName(e.target.value)} placeholder="Bill name" style={iS} />
+      <input value={amount} onChange={e => setAmount(e.target.value)} placeholder="Amount" type="number" style={iS} />
+      <input value={daysUntil} onChange={e => setDaysUntil(e.target.value)} placeholder="Days until due" type="number" style={iS} />
+      <div style={{ fontSize: 11, color: T.textSec, marginBottom: 12, textAlign: "center" }}>Due: {fmtDate(addDays(TODAY, parseInt(daysUntil) || 0))}</div>
+      <button onClick={() => { if (name && amount) { onAdd({ name, amount: parseFloat(amount), daysUntil: parseInt(daysUntil) || 15, paid: false, icon }); onClose(); }}} style={{ width: "100%", padding: "13px", borderRadius: 11, border: "none", background: T.primary, color: "#000", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>Add Bill</button>
+    </div>
+  </div>);
+}
+
+function EditBillModal({ onClose, bill, onSave }) {
+  const T = useT(); const [name, setName] = useState(bill.name); const [amount, setAmount] = useState(String(bill.amount)); const [date, setDate] = useState(bill.date); const [icon, setIcon] = useState(bill.icon);
+  const icons = ["📄","🏠","⚡","💧","🚗","📱","🎵","📺","💪","🩺"];
+  const iS = { width: "100%", padding: "10px 14px", borderRadius: 10, border: `1px solid ${T.border}`, background: T.card, color: T.text, fontSize: 13, outline: "none", boxSizing: "border-box", marginBottom: 10 };
+  return (<div style={{ position: "fixed", inset: 0, background: T.modalOverlay, zIndex: 200, display: "flex", alignItems: "flex-end", justifyContent: "center" }} onClick={onClose}>
+    <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 420, background: T.surface, borderRadius: "18px 18px 0 0", padding: "22px 18px 24px", animation: "slideUp .3s ease" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}><h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: T.text }}>Edit Bill</h3><button onClick={onClose} style={{ background: "none", border: "none", color: T.textMut, cursor: "pointer" }}>{I.close}</button></div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginBottom: 14 }}>{icons.map(ic => (<button key={ic} onClick={() => setIcon(ic)} style={{ width: 38, height: 38, borderRadius: 9, border: `1.5px solid ${icon === ic ? T.primary : T.border}`, background: icon === ic ? T.primaryGlow : T.card, fontSize: 17, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>{ic}</button>))}</div>
+      <input value={name} onChange={e => setName(e.target.value)} placeholder="Bill name" style={iS} />
+      <input value={amount} onChange={e => setAmount(e.target.value)} placeholder="Amount" type="number" style={iS} />
+      <input value={date} onChange={e => setDate(e.target.value)} placeholder="Due date" style={iS} />
+      <button onClick={() => { if (name && amount) { onSave({ ...bill, name, amount: parseFloat(amount), date, icon }); onClose(); }}} style={{ width: "100%", padding: "13px", borderRadius: 11, border: "none", background: T.primary, color: "#000", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>Save Changes</button>
+    </div>
+  </div>);
+}
+
+function AlertSetup({ onClose, categories, onSave }) {
+  const T = useT(); const [cat, setCat] = useState(Object.keys(categories)[0]); const [thresh, setThresh] = useState("70");
+  return (<div style={{ position: "fixed", inset: 0, background: T.modalOverlay, zIndex: 200, display: "flex", alignItems: "flex-end", justifyContent: "center" }} onClick={onClose}>
+    <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 420, background: T.surface, borderRadius: "18px 18px 0 0", padding: "22px 18px 24px", animation: "slideUp .3s ease" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}><h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: T.text }}>Set Spending Alert</h3><button onClick={onClose} style={{ background: "none", border: "none", color: T.textMut, cursor: "pointer" }}>{I.close}</button></div>
+      <div style={{ fontSize: 12, color: T.textSec, marginBottom: 12 }}>Get notified when a category reaches your threshold.</div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 14 }}>{Object.keys(categories).map(c => (<button key={c} onClick={() => setCat(c)} style={{ padding: "7px 14px", borderRadius: 7, border: `1px solid ${cat === c ? T.primary : T.border}`, background: cat === c ? T.primaryGlow : "transparent", color: cat === c ? T.primary : T.textSec, fontSize: 12, fontWeight: 500, cursor: "pointer" }}>{c}</button>))}</div>
+      <div style={{ marginBottom: 14 }}><div style={{ fontSize: 11, color: T.textMut, marginBottom: 6 }}>Alert at:</div><div style={{ display: "flex", gap: 6 }}>{["50","60","70","80","90"].map(t => (<button key={t} onClick={() => setThresh(t)} style={{ flex: 1, padding: "9px 0", borderRadius: 7, border: `1px solid ${thresh === t ? T.warning : T.border}`, background: thresh === t ? T.warningGlow : "transparent", color: thresh === t ? T.warning : T.textSec, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>{t}%</button>))}</div></div>
+      <button onClick={() => { onSave(cat, parseInt(thresh)); onClose(); }} style={{ width: "100%", padding: "13px", borderRadius: 11, border: "none", background: T.primary, color: "#000", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>Save Alert</button>
+    </div>
+  </div>);
+}
+
+function AddGoalModal({ onClose, onAdd }) {
+  const T = useT(); const [name, setName] = useState(""); const [target, setTarget] = useState(""); const [date, setDate] = useState("Jun 30"); const [icon, setIcon] = useState("🎯");
+  const icons = ["🎯","🛡️","✈️","🖥️","🚗","🏠","📚","🎮","💍","🏋️"];
+  const iS = { width: "100%", padding: "10px 14px", borderRadius: 10, border: `1px solid ${T.border}`, background: T.card, color: T.text, fontSize: 13, outline: "none", boxSizing: "border-box", marginBottom: 10 };
+  return (<div style={{ position: "fixed", inset: 0, background: T.modalOverlay, zIndex: 200, display: "flex", alignItems: "flex-end", justifyContent: "center" }} onClick={onClose}>
+    <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 420, background: T.surface, borderRadius: "18px 18px 0 0", padding: "22px 18px 24px", animation: "slideUp .3s ease" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}><h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: T.text }}>New Savings Goal</h3><button onClick={onClose} style={{ background: "none", border: "none", color: T.textMut, cursor: "pointer" }}>{I.close}</button></div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginBottom: 14 }}>{icons.map(ic => (<button key={ic} onClick={() => setIcon(ic)} style={{ width: 38, height: 38, borderRadius: 9, border: `1.5px solid ${icon === ic ? T.primary : T.border}`, background: icon === ic ? T.primaryGlow : T.card, fontSize: 17, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>{ic}</button>))}</div>
+      <input value={name} onChange={e => setName(e.target.value)} placeholder="Goal name (e.g. Vacation)" autoFocus style={iS} />
+      <input value={target} onChange={e => setTarget(e.target.value)} placeholder="Target amount" type="number" style={iS} />
+      <input value={date} onChange={e => setDate(e.target.value)} placeholder="Target date (e.g. Jun 30)" style={iS} />
+      <button onClick={() => { if (name && target) { onAdd({ name, saved: 0, target: parseFloat(target), targetDate: date, icon }); onClose(); }}} style={{ width: "100%", padding: "13px", borderRadius: 11, border: "none", background: T.primary, color: "#000", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>Create Goal</button>
+    </div>
+  </div>);
+}
+
+function FundGoalModal({ onClose, goal, onFund }) {
+  const T = useT(); const [amt, setAmt] = useState("");
+  const remaining = Math.max(goal.target - goal.saved, 0);
+  return (<div style={{ position: "fixed", inset: 0, background: T.modalOverlay, zIndex: 200, display: "flex", alignItems: "flex-end", justifyContent: "center" }} onClick={onClose}>
+    <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 420, background: T.surface, borderRadius: "18px 18px 0 0", padding: "22px 18px 24px", animation: "slideUp .3s ease" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}><h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: T.text }}>Add to {goal.name}</h3><button onClick={onClose} style={{ background: "none", border: "none", color: T.textMut, cursor: "pointer" }}>{I.close}</button></div>
+      <div style={{ fontSize: 12, color: T.textSec, marginBottom: 14 }}>{fmt(remaining)} remaining to reach your goal</div>
+      <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
+        {[10, 25, 50].filter(v => v <= remaining).map(v => (<button key={v} onClick={() => setAmt(String(v))} style={{ flex: 1, padding: "9px 0", borderRadius: 8, border: `1px solid ${amt === String(v) ? T.primary : T.border}`, background: amt === String(v) ? T.primaryGlow : "transparent", color: amt === String(v) ? T.primary : T.textSec, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>${v}</button>))}
+      </div>
+      <input value={amt} onChange={e => setAmt(e.target.value)} placeholder="Custom amount" type="number" autoFocus style={{ width: "100%", padding: "12px 14px", borderRadius: 10, border: `1px solid ${T.border}`, background: T.card, color: T.text, fontSize: 18, fontWeight: 700, textAlign: "center", fontFamily: "'DM Sans',sans-serif", outline: "none", boxSizing: "border-box", marginBottom: 14 }} />
+      <button onClick={() => { const a = parseFloat(amt); if (a > 0) { onFund(Math.min(a, remaining)); onClose(); }}} style={{ width: "100%", padding: "13px", borderRadius: 11, border: "none", background: T.primary, color: "#000", fontSize: 14, fontWeight: 700, cursor: "pointer", opacity: amt && parseFloat(amt) > 0 ? 1 : 0.4 }}>Move to Savings</button>
+      <div style={{ fontSize: 10, color: T.textMut, textAlign: "center", marginTop: 8 }}>This will reduce your safe-to-spend balance</div>
+    </div>
+  </div>);
+}
+
+function SettingsPanel({ onClose, persona, spending, darkMode, onToggleDark }) {
+  const T = useT();
+  return (<div style={{ position: "fixed", inset: 0, background: T.modalOverlay, zIndex: 200 }} onClick={onClose}>
+    <div onClick={e => e.stopPropagation()} style={{ position: "absolute", top: 0, right: 0, bottom: 0, width: "85%", maxWidth: 360, background: T.surface, padding: "20px 16px", overflowY: "auto", animation: "slideIn .3s ease" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}><h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: T.text }}>Settings</h3><button onClick={onClose} style={{ background: "none", border: "none", color: T.textMut, cursor: "pointer" }}>{I.close}</button></div>
+      <div style={{ background: T.card, borderRadius: 12, overflow: "hidden", border: `1px solid ${T.border}`, marginBottom: 14 }}>
+        {[{ l: "Pay Schedule", v: persona === 1 ? "Biweekly (Every 2 weeks)" : "Weekly (Every Tuesday)" }, { l: "Income Amount", v: persona === 1 ? "$1,200/paycheck" : "$680/week" }].map((s, i) => (<div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 14px", borderBottom: `1px solid ${T.border}` }}><span style={{ fontSize: 13, color: T.text }}>{s.l}</span><span style={{ fontSize: 12, color: T.textSec }}>{s.v}</span></div>))}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 14px", borderBottom: `1px solid ${T.border}` }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ color: T.textSec }}>{darkMode ? I.moon : I.sun}</span><span style={{ fontSize: 13, color: T.text }}>Dark Mode</span></div>
+          <Toggle on={darkMode} onToggle={onToggleDark} />
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 14px" }}><span style={{ fontSize: 13, color: T.text }}>Notifications</span><span style={{ fontSize: 12, color: T.textSec }}>Enabled</span></div>
+      </div>
+      <div style={{ background: T.card, borderRadius: 12, padding: "12px 14px", border: `1px solid ${T.border}`, marginBottom: 14 }}>
+        <div style={{ fontSize: 11, color: T.textMut, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8, fontWeight: 600 }}>Alert Thresholds</div>
+        {Object.entries(spending).map(([n]) => (<div key={n} style={{ display: "flex", justifyContent: "space-between", padding: "5px 0" }}><span style={{ fontSize: 12, color: T.text }}>{n}</span><span style={{ fontSize: 11, color: T.warning, fontWeight: 600 }}>70%</span></div>))}
+      </div>
+      <div style={{ background: T.card, borderRadius: 12, padding: "14px", border: `1px solid ${T.border}` }}>
+        <div style={{ fontSize: 10, color: T.textMut, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6, fontWeight: 600 }}>Prototype Info</div>
+        <div style={{ fontSize: 11, color: T.textSec, lineHeight: 1.6 }}>SpendSafe v1.0 — CAP3104 HCI Capstone<br/>The Budgetiers — UCF Spring 2026<br/>Persona: {persona === 1 ? "1 (The Blind Spender)" : "2 (The Careful Calculator)"}</div>
+      </div>
+    </div>
+  </div>);
+}
+
+// ─── Main App ───
+function SpendSafe() {
+  const [persona, setPersona] = useState(null);
+  const [tab, setTab] = useState("home");
+  const [tf, setTf] = useState("Weekly");
+  const [showQL, setShowQL] = useState(false);
+  const [showAB, setShowAB] = useState(false);
+  const [showAS, setShowAS] = useState(false);
+  const [showAG, setShowAG] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [fundingGoal, setFundingGoal] = useState(null);
+  const [editingBill, setEditingBill] = useState(null);
+  const [darkMode, setDarkMode] = useState(true);
+  const [toast, setToast] = useState(null);
+  const [txs, setTxs] = useState([]);
+  const [bills, setBills] = useState([]);
+  const [alerts, setAlerts] = useState([]);
+  const [spending, setSpending] = useState({});
+  const [goals, setGoals] = useState([]);
+  const [sts, setSts] = useState(0);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+
+  const T = darkMode ? DARK : LIGHT;
+  const pctColor = (p) => p >= 80 ? T.danger : p >= 60 ? T.warning : T.primary;
+
+  const load = (p) => {
+    const d = p === 1 ? P1 : P2;
+    setTxs(d.transactions.map(tx => ({ ...tx, date: relDate(tx.daysAgo) })));
+    setBills(d.bills.map(b => ({ ...b, date: fmtDate(addDays(TODAY, b.daysUntil)) })));
+    setAlerts([...d.alerts]);
+    setSpending(JSON.parse(JSON.stringify(d.spending))); setSts(d.safeToSpend);
+    setGoals(d.goals.map(g => ({ ...g }))); setPersona(p); setTab("home"); setTf("Weekly"); setShowSettings(false);
+  };
+
+  const data = persona === 1 ? P1 : P2;
+  const flash = (m) => { setToast(m); setTimeout(() => setToast(null), 2500); };
+  const handleLog = (tx) => {
+    setTxs(p => [tx, ...p]);
+    if (tx.amount < 0) { setSts(p => Math.max(0, p + tx.amount)); if (tx.category && spending[tx.category]) { setSpending(prev => { const c = { ...prev[tx.category] }; c.spent = +(c.spent + Math.abs(tx.amount)).toFixed(2); c.pct = Math.round((c.spent / c.limit) * 100); if (c.pct >= 70) { setAlerts(a => [{ type: c.pct >= 90 ? "danger" : "warning", msg: `${tx.category} is at ${c.pct}% of your ${fmt(c.limit)} limit`, time: "Just now" }, ...a]); flash(`⚠️ ${tx.category}: ${c.pct}% of limit`); } return { ...prev, [tx.category]: c }; }); } } else { setSts(p => p + tx.amount); }
+    flash(`✓ ${tx.name} ${fmt(tx.amount)}`);
+  };
+  const handleAddBill = (b) => { setBills(p => [...p, { ...b, date: fmtDate(addDays(TODAY, b.daysUntil)) }]); setSts(p => Math.max(0, p - b.amount)); flash(`✓ Bill: ${b.name}`); };
+  const handleDeleteBill = (i) => { const b = bills[i]; setBills(p => p.filter((_, idx) => idx !== i)); if (!b.paid) { setSts(p => p + b.amount); } flash(`✗ Removed: ${b.name}`); };
+  const handleTogglePaid = (i) => { setBills(p => p.map((b, idx) => idx === i ? { ...b, paid: !b.paid } : b)); };
+  const handleAddGoal = (g) => { setGoals(p => [...p, g]); flash(`✓ Goal: ${g.name}`); };
+  const handleEditBill = (idx, updated) => {
+    const oldAmt = bills[idx].amount;
+    const diff = updated.amount - oldAmt;
+    setBills(p => p.map((b, i) => i === idx ? updated : b));
+    if (!bills[idx].paid) { setSts(p => Math.max(0, p - diff)); }
+    flash(`✓ Updated: ${updated.name}`);
+  };
+  const handleFundGoal = (goalIdx, amount) => {
+    setGoals(p => p.map((g, i) => i === goalIdx ? { ...g, saved: Math.min(g.saved + amount, g.target) } : g));
+    setSts(p => Math.max(0, p - amount));
+    flash(`✓ Moved ${fmt(amount)} to savings`);
+  };
+
+  const forecastPoints = useMemo(() => buildForecast(data.balance, data.forecastEvents), [persona]);
+
+  // Monthly: current safe-to-spend + all income over 30 days - all current unpaid bills
+  const monthlyAvailable = useMemo(() => {
+    // Sum income from forecast events
+    let totalIncome = 0;
+    forecastPoints.forEach(p => { p.events.forEach(e => { if (e.type === "income") totalIncome += e.amount; }); });
+    // Sum unpaid bills from current state
+    const totalUnpaidBills = bills.filter(b => !b.paid).reduce((s, b) => s + b.amount, 0);
+    return Math.max(sts + totalIncome - totalUnpaidBills, 0);
+  }, [forecastPoints, bills, sts]);
+
+  // Smart time frame calculations
+  const frameAmt = tf === "Daily" ? +(sts / Math.max(data.daysUntilPay, 1)).toFixed(2) : tf === "Monthly" ? +monthlyAvailable.toFixed(2) : sts;
+  const frameDays = tf === "Daily" ? 1 : tf === "Monthly" ? 30 : data.daysUntilPay;
+  const frameDaysLabel = tf === "Daily" ? "Today" : tf === "Monthly" ? "This Month" : data.daysUntilPay + " Days Left";
+
+  const currentMonth = MONTHS[TODAY.getMonth()] + " " + TODAY.getFullYear();
+
+  const css = `@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700&display=swap');*{box-sizing:border-box;margin:0;padding:0}body{background:${T.bg};transition:background .35s}@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}@keyframes slideIn{from{transform:translateX(100%)}to{transform:translateX(0)}}@keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}button:active{transform:scale(0.97)}`;
+
+  if (persona === null) {
+    return (<ThemeCtx.Provider value={T}><div style={{ maxWidth: 420, margin: "0 auto", minHeight: "100vh", background: T.bg, fontFamily: "'DM Sans',-apple-system,BlinkMacSystemFont,sans-serif", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px 24px", color: T.text, transition: "background .35s,color .35s" }}>
+      <style>{css}</style>
+      <div style={{ opacity: mounted ? 1 : 0, transform: mounted ? "none" : "translateY(16px)", transition: "all .7s", textAlign: "center" }}>
+        <div style={{ marginBottom: 20, display: "flex", justifyContent: "center" }}>{I.shield}</div>
+        <h1 style={{ fontSize: 30, fontWeight: 700, marginBottom: 6, letterSpacing: "-0.02em" }}>Spend<span style={{ color: T.primary }}>Safe</span></h1>
+        <p style={{ fontSize: 14, color: T.textSec, lineHeight: 1.6, marginBottom: 24 }}>Know what you can spend — not just what's in your account.</p>
+        <div style={{ display: "flex", justifyContent: "center", gap: 8, marginBottom: 24, alignItems: "center" }}><span style={{ color: T.textMut }}>{I.sun}</span><Toggle on={darkMode} onToggle={() => setDarkMode(d => !d)} /><span style={{ color: T.textMut }}>{I.moon}</span></div>
+        <div style={{ fontSize: 11, color: T.textMut, marginBottom: 12, textTransform: "uppercase", letterSpacing: "0.1em", fontWeight: 600 }}>Select a Persona</div>
+        {[{ p: 1, name: "Marcus — The Blind Spender", sub: "Server, 22 · Tip-based income · No budget system" }, { p: 2, name: "Diana — The Careful Calculator", sub: "Salaried manager, 23 · Weekly pay · Calendar & mental math" }].map(({ p, name, sub }) => (<button key={p} onClick={() => load(p)} style={{ width: "100%", padding: "16px 18px", borderRadius: 13, border: `1px solid ${T.border}`, background: T.card, color: T.text, cursor: "pointer", textAlign: "left", marginBottom: 10, transition: "background .3s,border-color .3s" }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><div><div style={{ fontSize: 15, fontWeight: 700, marginBottom: 3 }}>{name}</div><div style={{ fontSize: 11.5, color: T.textSec }}>{sub}</div></div><span style={{ color: T.textMut }}>{I.chevron}</span></div></button>))}
+      </div>
+    </div></ThemeCtx.Provider>);
+  }
+
+  return (<ThemeCtx.Provider value={T}>
+    <div style={{ maxWidth: 420, margin: "0 auto", minHeight: "100vh", background: T.bg, fontFamily: "'DM Sans',-apple-system,BlinkMacSystemFont,sans-serif", paddingBottom: 68, color: T.text, position: "relative", transition: "background .35s,color .35s" }}>
+      <style>{css}</style>
+
+      {toast && (<div style={{ position: "fixed", top: 16, left: "50%", transform: "translateX(-50%)", background: T.card, color: T.text, padding: "10px 22px", borderRadius: 11, fontSize: 12, fontWeight: 600, zIndex: 300, border: `1px solid ${T.border}`, boxShadow: T.shadow, animation: "fadeIn .3s" }}>{toast}</div>)}
+
+      <div style={{ padding: "14px 14px 10px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: `1px solid ${T.border}` }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <button onClick={() => setPersona(null)} style={{ background: "none", border: "none", color: T.textMut, cursor: "pointer", padding: 3 }}>{I.back}</button>
+          <div><div style={{ fontSize: 9, color: T.textMut, textTransform: "uppercase", letterSpacing: "0.1em" }}>{persona === 1 ? "Scenario 1" : "Scenario 2"}</div><div style={{ fontSize: 15, fontWeight: 700 }}>Hi, {data.name} <span style={{ fontSize: 13, fontWeight: 400, color: T.textSec }}>· {fmt(data.balance)}</span></div></div>
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button onClick={() => setShowSettings(true)} style={{ width: 36, height: 36, borderRadius: 10, border: `1px solid ${T.border}`, background: T.card, color: T.textSec, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>{I.settings}</button>
+          <button onClick={() => setShowQL(true)} style={{ width: 36, height: 36, borderRadius: 10, border: "none", background: T.primary, color: "#000", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>{I.plus}</button>
+        </div>
+      </div>
+
+      {/* HOME */}
+      {tab === "home" && (<div style={{ animation: "fadeIn .35s" }}>
+        <TimeFrame selected={tf} onChange={setTf} />
+        <Ring amount={frameAmt} total={data.balance} daysLeft={frameDays} daysLabel={frameDaysLabel} nextPay={data.nextPaycheck} />
+        <div style={{ padding: "18px 14px 6px" }}><div style={{ fontSize: 12, fontWeight: 600, color: T.textMut, textTransform: "uppercase", letterSpacing: "0.08em" }}>Recent Transactions</div></div>
+        <div style={{ background: T.surface, borderRadius: 11, margin: "0 11px", overflow: "hidden", border: `1px solid ${T.border}` }}>
+          {txs.slice(0, 5).map((tx, i) => (<div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 14px", borderBottom: `1px solid ${T.border}` }}>
+            <div style={{ width: 34, height: 34, borderRadius: 9, display: "flex", alignItems: "center", justifyContent: "center", background: tx.amount > 0 ? T.primaryGlow : T.cardHover, fontSize: 15 }}>{catIcons[tx.category] || "📦"}</div>
+            <div style={{ flex: 1 }}><div style={{ fontSize: 13, fontWeight: 500, color: T.text }}>{tx.name}</div><div style={{ fontSize: 10, color: T.textMut }}>{tx.date} · {tx.time}</div></div>
+            <div style={{ fontSize: 14, fontWeight: 600, fontFamily: "'DM Sans',sans-serif", color: tx.amount > 0 ? T.primary : T.text }}>{tx.amount > 0 ? "+" : ""}{fmt(tx.amount)}</div>
+          </div>))}
+        </div>
+
+        {/* GOALS */}
+        <div style={{ padding: "20px 14px 6px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ color: T.primary }}>{I.target}</span><span style={{ fontSize: 12, fontWeight: 600, color: T.textMut, textTransform: "uppercase", letterSpacing: "0.08em" }}>Savings Goals</span></div>
+          <button onClick={() => setShowAG(true)} style={{ padding: "5px 12px", borderRadius: 7, border: "none", background: T.primary, color: "#000", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>+ New Goal</button>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: "0 11px", marginBottom: 12 }}>
+          {goals.map((g, i) => { const pct = Math.min(Math.round((g.saved / g.target) * 100), 100); const rem = Math.max(g.target - g.saved, 0); const done = pct >= 100; return (
+            <div key={i} style={{ background: T.card, borderRadius: 13, padding: "14px 16px", border: `1px solid ${done ? T.primary + "40" : T.border}`, transition: "background .3s" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ fontSize: 20 }}>{g.icon}</span><div><div style={{ fontSize: 14, fontWeight: 600, color: T.text }}>{g.name}</div><div style={{ fontSize: 11, color: T.textMut }}>Target: {g.targetDate}</div></div></div>
+                <div style={{ textAlign: "right" }}><div style={{ fontSize: 15, fontWeight: 700, color: T.primary, fontFamily: "'DM Sans',sans-serif" }}>{fmt(g.saved)}</div><div style={{ fontSize: 10, color: T.textSec }}>of {fmt(g.target)}</div></div>
+              </div>
+              <div style={{ height: 8, borderRadius: 4, background: T.ringTrack, overflow: "hidden" }}><div style={{ height: "100%", borderRadius: 4, width: `${pct}%`, background: done ? T.primary : `linear-gradient(90deg,${T.primary},${T.accent})`, transition: "width .8s" }} /></div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 6 }}>
+                <span style={{ fontSize: 11, fontWeight: 600, color: done ? T.primary : T.textSec }}>{done ? "✓ Goal reached!" : `${pct}% saved · ${fmt(rem)} to go`}</span>
+                {!done && <button onClick={() => setFundingGoal(i)} style={{ padding: "4px 10px", borderRadius: 6, border: `1px solid ${T.primary}`, background: T.primaryGlow, color: T.primary, fontSize: 11, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 3 }}>{I.fund} Add Funds</button>}
+              </div>
+            </div>
+          ); })}
+        </div>
+      </div>)}
+
+      {/* FORECAST */}
+      {tab === "forecast" && (<div style={{ animation: "fadeIn .35s" }}>
+        <div style={{ padding: "18px 14px 4px" }}><div style={{ fontSize: 17, fontWeight: 700, color: T.text }}>30-Day Forecast</div><div style={{ fontSize: 12, color: T.textSec, marginTop: 3, lineHeight: 1.5 }}>Projected balance based on income, bills, and average daily spending.</div></div>
+        {(() => { const v = forecastPoints.map(p => p.balance); const lv = Math.min(...v); const ld = forecastPoints[v.indexOf(lv)]; const hv = Math.max(...v); const ev = forecastPoints[30].balance; return (<div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, padding: "12px 14px" }}>
+          <div style={{ background: T.dangerGlow, borderRadius: 11, padding: "12px 10px", border: "1px solid rgba(239,68,68,0.2)", textAlign: "center" }}><div style={{ fontSize: 9, color: T.danger, textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 600, marginBottom: 4 }}>Lowest Point</div><div style={{ fontSize: 17, fontWeight: 700, color: T.danger, fontFamily: "'DM Sans',sans-serif" }}>{fmtShort(lv)}</div><div style={{ fontSize: 10, color: T.textMut, marginTop: 2 }}>{ld.dow} {ld.label}</div></div>
+          <div style={{ background: T.primaryGlow, borderRadius: 11, padding: "12px 10px", border: "1px solid rgba(34,197,94,0.2)", textAlign: "center" }}><div style={{ fontSize: 9, color: T.primary, textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 600, marginBottom: 4 }}>Peak Balance</div><div style={{ fontSize: 17, fontWeight: 700, color: T.primary, fontFamily: "'DM Sans',sans-serif" }}>{fmtShort(hv)}</div></div>
+          <div style={{ background: T.accentGlow, borderRadius: 11, padding: "12px 10px", border: "1px solid rgba(129,140,248,0.2)", textAlign: "center" }}><div style={{ fontSize: 9, color: T.accent, textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 600, marginBottom: 4 }}>Day 30</div><div style={{ fontSize: 17, fontWeight: 700, color: T.accent, fontFamily: "'DM Sans',sans-serif" }}>{fmtShort(ev)}</div></div>
+        </div>); })()}
+        <div style={{ padding: "4px 8px" }}><ForecastChart data={data} points={forecastPoints} /></div>
+        <div style={{ display: "flex", gap: 16, justifyContent: "center", padding: "4px 0 12px" }}>{[{ col: T.primary, label: "Income" }, { col: T.danger, label: "Bill" }, { col: T.accent, label: "Balance" }].map(l => (<div key={l.label} style={{ display: "flex", alignItems: "center", gap: 5 }}><div style={{ width: 8, height: 8, borderRadius: 4, background: l.col }} /><span style={{ fontSize: 10, color: T.textSec }}>{l.label}</span></div>))}</div>
+        <div style={{ padding: "4px 14px 6px" }}><div style={{ fontSize: 12, fontWeight: 600, color: T.textMut, textTransform: "uppercase", letterSpacing: "0.08em" }}>Upcoming Events</div></div>
+        <ForecastEventList points={forecastPoints} /><div style={{ height: 12 }} />
+      </div>)}
+
+      {/* SPENDING */}
+      {tab === "spending" && (<div style={{ animation: "fadeIn .35s" }}>
+        <div style={{ padding: "18px 14px 6px", display: "flex", justifyContent: "space-between", alignItems: "center" }}><div><div style={{ fontSize: 17, fontWeight: 700, color: T.text }}>Spending</div><div style={{ fontSize: 11, color: T.textSec }}>{currentMonth}</div></div><button onClick={() => setShowAS(true)} style={{ padding: "7px 12px", borderRadius: 7, border: `1px solid ${T.border}`, background: T.card, color: T.textSec, fontSize: 11, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 5 }}>{I.bell} Set Alert</button></div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, padding: "10px 14px" }}>
+          {Object.entries(spending).map(([n, d]) => (<div key={n} style={{ background: T.card, borderRadius: 12, padding: "14px", border: `1px solid ${T.border}`, display: "flex", flexDirection: "column", alignItems: "center" }}>
+            <div style={{ position: "relative", width: 56, height: 56, marginBottom: 7 }}><svg width="56" height="56" viewBox="0 0 56 56" style={{ transform: "rotate(-90deg)" }}><circle cx="28" cy="28" r="22" fill="none" stroke={T.ringTrack} strokeWidth="5" /><circle cx="28" cy="28" r="22" fill="none" stroke={pctColor(d.pct)} strokeWidth="5" strokeDasharray={2*Math.PI*22} strokeDashoffset={(2*Math.PI*22)*(1-d.pct/100)} strokeLinecap="round" style={{ transition: "all .8s" }} /></svg><div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: pctColor(d.pct) }}>{d.pct}%</div></div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: T.text, textAlign: "center" }}>{n}</div><div style={{ fontSize: 10, color: T.textSec }}>{fmt(d.spent)} / {fmt(d.limit)}</div>
+          </div>))}
+        </div>
+        <div style={{ padding: "6px 14px" }}><div style={{ fontSize: 12, fontWeight: 600, color: T.textMut, textTransform: "uppercase", letterSpacing: "0.08em" }}>Details</div></div>
+        <div style={{ background: T.surface, borderRadius: 11, margin: "0 11px", overflow: "hidden", border: `1px solid ${T.border}` }}>
+          {Object.entries(spending).map(([n, d]) => (<div key={n} style={{ padding: "12px 14px", borderBottom: `1px solid ${T.border}` }}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}><span style={{ fontSize: 13, fontWeight: 500, color: T.text }}>{n}</span><span style={{ fontSize: 12, color: T.textSec }}>{fmt(d.spent)} / {fmt(d.limit)}</span></div>
+            <div style={{ height: 7, borderRadius: 4, background: T.ringTrack, overflow: "hidden" }}><div style={{ height: "100%", borderRadius: 4, width: `${Math.min(d.pct, 100)}%`, background: pctColor(d.pct), transition: "width .8s" }} /></div>
+            <div style={{ fontSize: 10, color: pctColor(d.pct), marginTop: 3, fontWeight: 600 }}>{d.pct}% used</div>
+          </div>))}
+        </div>
+      </div>)}
+
+      {/* ALERTS */}
+      {tab === "alerts" && (<div style={{ animation: "fadeIn .35s" }}>
+        <div style={{ padding: "18px 14px 6px", display: "flex", justifyContent: "space-between", alignItems: "center" }}><div style={{ fontSize: 17, fontWeight: 700, color: T.text }}>Notifications</div><button onClick={() => setShowAS(true)} style={{ padding: "7px 12px", borderRadius: 7, border: "none", background: T.primary, color: "#000", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>+ New Alert</button></div>
+        <div style={{ background: T.surface, borderRadius: 11, margin: "10px 11px", overflow: "hidden", border: `1px solid ${T.border}` }}>
+          {alerts.length === 0 ? (<div style={{ padding: 36, textAlign: "center", color: T.textMut, fontSize: 13 }}>No alerts yet.</div>) : alerts.map((a, i) => { const cols = { warning: T.warning, danger: T.danger, info: T.accent }; const bgs = { warning: T.warningGlow, danger: T.dangerGlow, info: T.accentGlow }; return (<div key={i} style={{ padding: "12px 14px", borderBottom: `1px solid ${T.border}`, background: bgs[a.type], borderLeft: `3px solid ${cols[a.type]}` }}><div style={{ fontSize: 12.5, fontWeight: 500, color: T.text, lineHeight: 1.4 }}>{a.msg}</div><div style={{ fontSize: 10, color: T.textMut, marginTop: 3, display: "flex", alignItems: "center", gap: 4 }}>{I.clock} {a.time}</div></div>); })}
+        </div>
+      </div>)}
+
+      {/* BILLS */}
+      {tab === "bills" && (<div style={{ animation: "fadeIn .35s" }}>
+        <div style={{ padding: "18px 14px 6px", display: "flex", justifyContent: "space-between", alignItems: "center" }}><div><div style={{ fontSize: 17, fontWeight: 700, color: T.text }}>Upcoming Bills</div><div style={{ fontSize: 11, color: T.textSec }}>Total: {fmt(bills.reduce((s, b) => s + b.amount, 0))}</div></div><button onClick={() => setShowAB(true)} style={{ padding: "7px 12px", borderRadius: 7, border: "none", background: T.primary, color: "#000", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>+ Add Bill</button></div>
+        <div style={{ background: T.surface, borderRadius: 11, margin: "10px 11px", overflow: "hidden", border: `1px solid ${T.border}` }}>
+          {bills.map((b, i) => (<div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", borderBottom: `1px solid ${T.border}`, opacity: b.paid ? 0.7 : 1 }}>
+            <button onClick={() => handleTogglePaid(i)} style={{ width: 28, height: 28, borderRadius: 8, border: `2px solid ${b.paid ? T.primary : T.border}`, background: b.paid ? T.primaryGlow : "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: T.primary, flexShrink: 0, fontSize: 14 }}>{b.paid ? I.check : ""}</button>
+            <div style={{ fontSize: 18, flexShrink: 0 }}>{b.icon}</div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 500, color: T.text, textDecoration: b.paid ? "line-through" : "none" }}>{b.name}</div>
+              <div style={{ fontSize: 10, color: T.textMut }}>Due {b.date}</div>
+            </div>
+            <div style={{ textAlign: "right", marginRight: 4 }}><div style={{ fontSize: 14, fontWeight: 600, color: T.text }}>{fmt(b.amount)}</div><div style={{ fontSize: 9, color: b.paid ? T.primary : T.warning, fontWeight: 600 }}>{b.paid ? "Paid" : "Upcoming"}</div></div>
+            <button onClick={() => setEditingBill(i)} style={{ background: "none", border: "none", color: T.textMut, cursor: "pointer", padding: 4, flexShrink: 0, opacity: 0.6 }}>{I.edit}</button>
+            <button onClick={() => handleDeleteBill(i)} style={{ background: "none", border: "none", color: T.textMut, cursor: "pointer", padding: 4, flexShrink: 0, opacity: 0.6 }}>{I.trash}</button>
+          </div>))}
+        </div>
+      </div>)}
+
+      <Nav tab={tab} setTab={setTab} />
+      {showQL && <QuickLog onClose={() => setShowQL(false)} onLog={handleLog} spending={spending} />}
+      {showAB && <AddBill onClose={() => setShowAB(false)} onAdd={handleAddBill} />}
+      {showAS && <AlertSetup onClose={() => setShowAS(false)} categories={spending} onSave={(c, t) => flash(`✓ Alert: ${c} at ${t}%`)} />}
+      {showAG && <AddGoalModal onClose={() => setShowAG(false)} onAdd={handleAddGoal} />}
+      {fundingGoal !== null && <FundGoalModal onClose={() => setFundingGoal(null)} goal={goals[fundingGoal]} onFund={(amt) => handleFundGoal(fundingGoal, amt)} />}
+      {editingBill !== null && <EditBillModal onClose={() => setEditingBill(null)} bill={bills[editingBill]} onSave={(updated) => handleEditBill(editingBill, updated)} />}
+      {showSettings && <SettingsPanel onClose={() => setShowSettings(false)} persona={persona} spending={spending} darkMode={darkMode} onToggleDark={() => setDarkMode(d => !d)} />}
+    </div>
+  </ThemeCtx.Provider>);
+}
+
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<SpendSafe />);
+  </script>
+</body>
+</html>
