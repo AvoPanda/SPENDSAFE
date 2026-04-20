@@ -101,14 +101,14 @@ const P1 = {
     { name: "Gym Membership", amount: 29.99, daysUntil: 22, paid: false, icon: "💪" },
   ],
   transactions: [
-    { name: "Uber Eats — Chipotle", amount: -18.47, category: "Eating Out", daysAgo: 0, time: "1:22 PM" },
-    { name: "Shell Gas Station", amount: -42.30, category: "Gas", daysAgo: 1, time: "7:45 PM" },
-    { name: "Amazon — Phone Case", amount: -14.99, category: "Shopping", daysAgo: 1, time: "3:10 PM" },
-    { name: "Daily Tips — Deposit", amount: 127.00, category: "Income", daysAgo: 1, time: "11:30 PM" },
-    { name: "Wingstop", amount: -23.56, category: "Eating Out", daysAgo: 2, time: "8:15 PM" },
-    { name: "Daily Tips — Deposit", amount: 98.00, category: "Income", daysAgo: 2, time: "11:15 PM" },
-    { name: "Target", amount: -31.22, category: "Shopping", daysAgo: 3, time: "2:40 PM" },
-    { name: "Daily Tips — Deposit", amount: 145.00, category: "Income", daysAgo: 3, time: "11:00 PM" },
+    { name: "Uber Eats — Chipotle", amount: -18.47, category: "Eating Out", daysAgo: 1, time: "1:22 PM" },
+    { name: "Shell Gas Station", amount: -42.30, category: "Gas", daysAgo: 2, time: "7:45 PM" },
+    { name: "Amazon — Phone Case", amount: -14.99, category: "Shopping", daysAgo: 2, time: "3:10 PM" },
+    { name: "Daily Tips — Deposit", amount: 127.00, category: "Income", daysAgo: 2, time: "11:30 PM" },
+    { name: "Wingstop", amount: -23.56, category: "Eating Out", daysAgo: 3, time: "8:15 PM" },
+    { name: "Daily Tips — Deposit", amount: 98.00, category: "Income", daysAgo: 3, time: "11:15 PM" },
+    { name: "Target", amount: -31.22, category: "Shopping", daysAgo: 4, time: "2:40 PM" },
+    { name: "Daily Tips — Deposit", amount: 145.00, category: "Income", daysAgo: 4, time: "11:00 PM" },
   ],
   spending: { "Eating Out": { spent: 156.40, limit: 200, pct: 78 }, "Gas": { spent: 89.60, limit: 120, pct: 75 }, "Shopping": { spent: 112.33, limit: 150, pct: 75 }, "Groceries": { spent: 67.20, limit: 200, pct: 34 } },
   alerts: [ { type: "warning", msg: "Eating Out is at 78% of your $200 monthly limit", time: "2h ago" }, { type: "info", msg: "Next paycheck in 14 days", time: "Today" } ],
@@ -156,13 +156,13 @@ const P2 = {
     { name: "Netflix", amount: 15.99, daysUntil: 21, paid: false, icon: "📺" },
   ],
   transactions: [
-    { name: "Publix Supermarket", amount: -47.83, category: "Groceries", daysAgo: 0, time: "5:30 PM" },
-    { name: "Shell Gas Station", amount: -38.50, category: "Gas", daysAgo: 1, time: "7:00 AM" },
-    { name: "Walgreens — Prescription", amount: -12.40, category: "Medical", daysAgo: 2, time: "1:15 PM" },
-    { name: "Weekly Pay — Deposit", amount: 680.00, category: "Income", daysAgo: 2, time: "6:00 AM" },
-    { name: "Dollar Tree", amount: -8.50, category: "Shopping", daysAgo: 3, time: "4:20 PM" },
-    { name: "Publix Supermarket", amount: -52.17, category: "Groceries", daysAgo: 4, time: "6:10 PM" },
-    { name: "McDonald's", amount: -9.47, category: "Eating Out", daysAgo: 5, time: "12:30 PM" },
+    { name: "Publix Supermarket", amount: -47.83, category: "Groceries", daysAgo: 1, time: "5:30 PM" },
+    { name: "Shell Gas Station", amount: -38.50, category: "Gas", daysAgo: 2, time: "7:00 AM" },
+    { name: "Walgreens — Prescription", amount: -12.40, category: "Medical", daysAgo: 3, time: "1:15 PM" },
+    { name: "Weekly Pay — Deposit", amount: 680.00, category: "Income", daysAgo: 3, time: "6:00 AM" },
+    { name: "Dollar Tree", amount: -8.50, category: "Shopping", daysAgo: 4, time: "4:20 PM" },
+    { name: "Publix Supermarket", amount: -52.17, category: "Groceries", daysAgo: 5, time: "6:10 PM" },
+    { name: "McDonald's", amount: -9.47, category: "Eating Out", daysAgo: 6, time: "12:30 PM" },
   ],
   spending: { "Groceries": { spent: 134.22, limit: 180, pct: 75 }, "Gas": { spent: 72.00, limit: 80, pct: 90 }, "Medical": { spent: 12.40, limit: 50, pct: 25 }, "Shopping": { spent: 23.70, limit: 40, pct: 59 } },
   alerts: [ { type: "danger", msg: "Gas spending is at 90% of your $80 weekly limit", time: "1h ago" }, { type: "info", msg: "Next paycheck in 7 days", time: "Today" } ],
@@ -301,11 +301,10 @@ function ForecastEventList({ points }) {
   </div>);
 }
 
-function Ring({ amount, total, daysLeft, daysLabel, nextPay }) {
+function Ring({ amount, total, daysLeft, daysLabel, nextPay, perDay }) {
   const T = useT(); const pct = Math.min((Math.max(amount, 0) / total) * 100, 100);
   const r = 78, circ = 2 * Math.PI * r, off = circ - (pct / 100) * circ;
   const col = pct > 40 ? T.primary : pct > 20 ? T.warning : T.danger;
-  const perDay = amount / Math.max(daysLeft, 1);
   return (<div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "24px 0 6px" }}>
     <div style={{ position: "relative", width: 192, height: 192 }}>
       <svg width="192" height="192" viewBox="0 0 192 192" style={{ transform: "rotate(-90deg)" }}><circle cx="96" cy="96" r={r} fill="none" stroke={T.ringTrack} strokeWidth="9" /><circle cx="96" cy="96" r={r} fill="none" stroke={col} strokeWidth="9" strokeDasharray={circ} strokeDashoffset={off} strokeLinecap="round" style={{ transition: "stroke-dashoffset 1s ease, stroke 0.5s" }} /></svg>
@@ -536,9 +535,17 @@ function SpendSafe() {
   }, [forecastPoints, bills, sts]);
 
   // Smart time frame calculations
-  const frameAmt = tf === "Daily" ? +(sts / Math.max(data.daysUntilPay, 1)).toFixed(2) : tf === "Monthly" ? +monthlyAvailable.toFixed(2) : sts;
+  // Daily budget is locked: initial safe-to-spend / days until pay (doesn't recalculate when you spend today)
+  const initialSts = persona === 1 ? P1.safeToSpend : P2.safeToSpend;
+  const dailyBudget = +(initialSts / Math.max(data.daysUntilPay, 1)).toFixed(2);
+  // Track ALL spending today — both pre-loaded and newly logged transactions
+  const spentToday = txs.filter(tx => tx.date === fmtDate(TODAY) && tx.amount < 0).reduce((s, tx) => s + Math.abs(tx.amount), 0);
+  const dailyRemaining = Math.max(dailyBudget - spentToday, 0);
+  const frameAmt = tf === "Daily" ? +dailyRemaining.toFixed(2) : tf === "Monthly" ? +monthlyAvailable.toFixed(2) : sts;
   const frameDays = tf === "Daily" ? 1 : tf === "Monthly" ? 30 : data.daysUntilPay;
   const frameDaysLabel = tf === "Daily" ? "Today" : tf === "Monthly" ? "This Month" : data.daysUntilPay + " Days Left";
+  // Per Day: on Daily tab show what's left today, on other tabs show the daily budget
+  const framePerDay = tf === "Daily" ? dailyRemaining : dailyBudget;
 
   const currentMonth = MONTHS[TODAY.getMonth()] + " " + TODAY.getFullYear();
 
@@ -578,7 +585,7 @@ function SpendSafe() {
       {/* HOME */}
       {tab === "home" && (<div style={{ animation: "fadeIn .35s" }}>
         <TimeFrame selected={tf} onChange={setTf} />
-        <Ring amount={frameAmt} total={data.balance} daysLeft={frameDays} daysLabel={frameDaysLabel} nextPay={data.nextPaycheck} />
+        <Ring amount={frameAmt} total={data.balance} daysLeft={frameDays} daysLabel={frameDaysLabel} nextPay={data.nextPaycheck} perDay={framePerDay} />
         <div style={{ padding: "18px 14px 6px" }}><div style={{ fontSize: 12, fontWeight: 600, color: T.textMut, textTransform: "uppercase", letterSpacing: "0.08em" }}>Recent Transactions</div></div>
         <div style={{ background: T.surface, borderRadius: 11, margin: "0 11px", overflow: "hidden", border: `1px solid ${T.border}` }}>
           {txs.slice(0, 5).map((tx, i) => (<div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 14px", borderBottom: `1px solid ${T.border}` }}>
